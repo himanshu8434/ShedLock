@@ -59,7 +59,8 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
  *       </code>.
  * <li>If the update succeeded, we have the lock. If the update failed
  * (condition check exception) somebody else holds the lock.
- * <li>When unlocking, <code>lock_until</code> is set to <i>now</i> or
+ * <li>When unlocking, <code>loc
+ * k_until</code> is set to <i>now</i> or
  * <i>lockAtLeastUntil</i> whichever is later.
  * </ol>
  */
@@ -70,9 +71,9 @@ public class DynamoDBLockProvider implements LockProvider {
     static final String ID = "_id";
 
     private static final String OBTAIN_LOCK_QUERY =
-            "set " + LOCK_UNTIL + " = :lockUntil, " + LOCKED_AT + " = :lockedAt, " + LOCKED_BY + " = :lockedBy";
+        "set " + LOCK_UNTIL + " = :lockUntil, " + LOCKED_AT + " = :lockedAt, " + LOCKED_BY + " = :lockedBy";
     private static final String OBTAIN_LOCK_CONDITION =
-            LOCK_UNTIL + " <= :lockedAt or attribute_not_exists(" + LOCK_UNTIL + ")";
+        LOCK_UNTIL + " <= :lockedAt or attribute_not_exists(" + LOCK_UNTIL + ")";
     private static final String RELEASE_LOCK_QUERY = "set " + LOCK_UNTIL + " = :lockUntil";
 
     private final String hostname;
@@ -87,10 +88,7 @@ public class DynamoDBLockProvider implements LockProvider {
      * @param tableName      the lock table name
      */
     public DynamoDBLockProvider(@NonNull DynamoDbClient dynamoDbClient, @NonNull String tableName) {
-        this.dynamoDbClient = requireNonNull(dynamoDbClient, "dynamoDbClient can not be null");
-        this.tableName = requireNonNull(tableName, "tableName can not be null");
-        this.hostname = Utils.getHostname();
-        this.partitionKeyName = ID;
+        this(dynamoDbClient, tableName, ID);
     }
 
     /**
@@ -119,13 +117,13 @@ public class DynamoDBLockProvider implements LockProvider {
             Map.of(":lockUntil", attr(lockUntilIso), ":lockedAt", attr(nowIso), ":lockedBy", attr(hostname));
 
         UpdateItemRequest request = UpdateItemRequest.builder()
-                .tableName(tableName)
-                .key(key)
-                .updateExpression(OBTAIN_LOCK_QUERY)
-                .conditionExpression(OBTAIN_LOCK_CONDITION)
-                .expressionAttributeValues(attributeUpdates)
-                .returnValues(ReturnValue.UPDATED_NEW)
-                .build();
+            .tableName(tableName)
+            .key(key)
+            .updateExpression(OBTAIN_LOCK_QUERY)
+            .conditionExpression(OBTAIN_LOCK_CONDITION)
+            .expressionAttributeValues(attributeUpdates)
+            .returnValues(ReturnValue.UPDATED_NEW)
+            .build();
 
         try {
             // There are three possible situations:
@@ -172,12 +170,12 @@ public class DynamoDBLockProvider implements LockProvider {
             Map<String, AttributeValue> attributeUpdates = singletonMap(":lockUntil", attr(unlockTimeIso));
 
             UpdateItemRequest request = UpdateItemRequest.builder()
-                    .tableName(tableName)
-                    .key(key)
-                    .updateExpression(RELEASE_LOCK_QUERY)
-                    .expressionAttributeValues(attributeUpdates)
-                    .returnValues(ReturnValue.UPDATED_NEW)
-                    .build();
+                .tableName(tableName)
+                .key(key)
+                .updateExpression(RELEASE_LOCK_QUERY)
+                .expressionAttributeValues(attributeUpdates)
+                .returnValues(ReturnValue.UPDATED_NEW)
+                .build();
 
             dynamoDbClient.updateItem(request);
         }
